@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef UPSKIRT_AUTOLINK_H
-#define UPSKIRT_AUTOLINK_H
+#ifndef AUTOLINK_H__
+#define AUTOLINK_H__
 
 #include "buffer.h"
 
@@ -47,5 +47,3 @@ sd_autolink__url(size_t *rewind_p, struct buf *link,
 #endif
 
 #endif
-
-/* vim: set filetype=c: */

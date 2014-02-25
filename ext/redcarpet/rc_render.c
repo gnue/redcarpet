@@ -40,11 +40,7 @@ VALUE rb_cRenderHTML;
 VALUE rb_cRenderHTML_TOC;
 VALUE rb_mSmartyPants;
 
-#ifdef HAVE_RUBY_ENCODING_H
-#define buf2str(t) ((t) ? redcarpet_str_new((t)->data, (t)->size, opt->active_enc) : Qnil)
-#else
-#define buf2str(t) ((t) ? redcarpet_str_new((t)->data, (t)->size, NULL) : Qnil)
-#endif
+#define buf2str(t) ((t) ? rb_enc_str_new((const char*)(t)->data, (t)->size, opt->active_enc) : Qnil)
 
 static void
 rndr_blockcode(struct buf *ob, const struct buf *text, const struct buf *lang, void *opaque)
@@ -65,9 +61,9 @@ rndr_raw_block(struct buf *ob, const struct buf *text, void *opaque)
 }
 
 static void
-rndr_header(struct buf *ob, const struct buf *text, int level, void *opaque)
+rndr_header(struct buf *ob, const struct buf *text, int level, char *anchor, void *opaque)
 {
-	BLOCK_CALLBACK("header", 2, buf2str(text), INT2FIX(level));
+	BLOCK_CALLBACK("header", 3, buf2str(text), INT2FIX(level), rb_str_new2(anchor));
 }
 
 static void
@@ -140,7 +136,17 @@ rndr_tablecell(struct buf *ob, const struct buf *text, int align, void *opaque)
 	BLOCK_CALLBACK("table_cell", 2, buf2str(text), rb_align);
 }
 
+static void
+rndr_footnotes(struct buf *ob, const struct buf *text, void *opaque)
+{
+	BLOCK_CALLBACK("footnotes", 1, buf2str(text));
+}
 
+static void
+rndr_footnote_def(struct buf *ob, const struct buf *text, unsigned int num, void *opaque)
+{
+	BLOCK_CALLBACK("footnote_def", 2, buf2str(text), INT2FIX(num));
+}
 
 
 /***
@@ -169,6 +175,24 @@ static int
 rndr_emphasis(struct buf *ob, const struct buf *text, void *opaque)
 {
 	SPAN_CALLBACK("emphasis", 1, buf2str(text));
+}
+
+static int
+rndr_underline(struct buf *ob, const struct buf *text, void *opaque)
+{
+	SPAN_CALLBACK("underline", 1, buf2str(text));
+}
+
+static int
+rndr_highlight(struct buf *ob, const struct buf *text, void *opaque)
+{
+	SPAN_CALLBACK("highlight", 1, buf2str(text));
+}
+
+static int
+rndr_quote(struct buf *ob, const struct buf *text, void *opaque)
+{
+	SPAN_CALLBACK("quote", 1, buf2str(text));
 }
 
 static int
@@ -211,6 +235,12 @@ static int
 rndr_superscript(struct buf *ob, const struct buf *text, void *opaque)
 {
 	SPAN_CALLBACK("superscript", 1, buf2str(text));
+}
+
+static int
+rndr_footnote_ref(struct buf *ob, unsigned int num, void *opaque)
+{
+	SPAN_CALLBACK("footnote_ref", 1, INT2FIX(num));
 }
 
 static int
@@ -286,11 +316,16 @@ static struct sd_callbacks rb_redcarpet_callbacks = {
 	rndr_table,
 	rndr_tablerow,
 	rndr_tablecell,
+	rndr_footnotes,
+	rndr_footnote_def,
 
 	rndr_autolink,
 	rndr_codespan,
 	rndr_double_emphasis,
 	rndr_emphasis,
+	rndr_underline,
+	rndr_highlight,
+	rndr_quote,
 	rndr_image,
 	rndr_linebreak,
 	rndr_link,
@@ -298,6 +333,7 @@ static struct sd_callbacks rb_redcarpet_callbacks = {
 	rndr_triple_emphasis,
 	rndr_strikethrough,
 	rndr_superscript,
+	rndr_footnote_ref,
 	rndr_tcy,
 	rndr_ruby,
 
@@ -321,11 +357,16 @@ static const char *rb_redcarpet_method_names[] = {
 	"table",
 	"table_row",
 	"table_cell",
+	"footnotes",
+	"footnote_def",
 
 	"autolink",
 	"codespan",
 	"double_emphasis",
 	"emphasis",
+	"underline",
+	"highlight",
+	"quote",
 	"image",
 	"linebreak",
 	"link",
@@ -333,6 +374,7 @@ static const char *rb_redcarpet_method_names[] = {
 	"triple_emphasis",
 	"strikethrough",
 	"superscript",
+	"footnote_ref",
 	"tcy",
 	"ruby",
 
@@ -451,12 +493,26 @@ static VALUE rb_redcarpet_html_init(int argc, VALUE *argv, VALUE self)
 	return Qnil;
 }
 
-static VALUE rb_redcarpet_htmltoc_init(VALUE self)
+static VALUE rb_redcarpet_htmltoc_init(int argc, VALUE *argv, VALUE self)
 {
 	struct rb_redcarpet_rndr *rndr;
+	int nesting_level = 6;
+	VALUE hash, key = Qnil;
+
 	Data_Get_Struct(self, struct rb_redcarpet_rndr, rndr);
 
-	sdhtml_toc_renderer(&rndr->callbacks, (struct html_renderopt *)&rndr->options.html);
+	if (rb_scan_args(argc, argv, "01", &hash) == 1) {
+		Check_Type(hash, T_HASH);
+
+		key = CSTR2SYM("nesting_level");
+
+		if (RTEST(rb_hash_aref(hash, key))) {
+			Check_Type(rb_hash_aref(hash, key), T_FIXNUM);
+			nesting_level = NUM2INT(rb_hash_aref(hash, key));
+		}
+	}
+
+	sdhtml_toc_renderer(&rndr->callbacks, (struct html_renderopt *)&rndr->options.html, nesting_level);
 	rb_redcarpet__overload(self, rb_cRenderHTML_TOC);
 
 	return Qnil;
@@ -471,8 +527,8 @@ static VALUE rb_redcarpet_smartypants_render(VALUE self, VALUE text)
 
 	output_buf = bufnew(128);
 
-	sdhtml_smartypants(output_buf, RSTRING_PTR(text), RSTRING_LEN(text));
-	result = redcarpet_str_new(output_buf->data, output_buf->size, rb_enc_get(text));
+	sdhtml_smartypants(output_buf, (const uint8_t*)RSTRING_PTR(text), RSTRING_LEN(text));
+	result = rb_enc_str_new((const char*)output_buf->data, output_buf->size, rb_enc_get(text));
 
 	bufrelease(output_buf);
 	return result;
@@ -490,7 +546,7 @@ void Init_redcarpet_rndr()
 	rb_define_method(rb_cRenderHTML, "initialize", rb_redcarpet_html_init, -1);
 
 	rb_cRenderHTML_TOC = rb_define_class_under(rb_mRender, "HTML_TOC", rb_cRenderBase);
-	rb_define_method(rb_cRenderHTML_TOC, "initialize", rb_redcarpet_htmltoc_init, 0);
+	rb_define_method(rb_cRenderHTML_TOC, "initialize", rb_redcarpet_htmltoc_init, -1);
 
 	rb_mSmartyPants = rb_define_module_under(rb_mRender, "SmartyPants");
 	rb_define_method(rb_mSmartyPants, "postprocess", rb_redcarpet_smartypants_render, 1);

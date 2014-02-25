@@ -66,11 +66,10 @@ houdini_escape_html0(struct buf *ob, const uint8_t *src, size_t size, int secure
 			break;
 
 		/* The forward slash is only escaped in secure mode */
-		if (src[i] == '/' && !secure) {
+		if (src[i] == '/' && !secure)
 			bufputc(ob, '/');
-		} else {
+		else
 			bufputs(ob, HTML_ESCAPES[esc]);
-		}
 
 		i++;
 	}

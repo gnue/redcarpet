@@ -38,11 +38,23 @@ static void rb_redcarpet_md_flags(VALUE hash, unsigned int *enabled_extensions_p
 	if (rb_hash_lookup(hash, CSTR2SYM("fenced_code_blocks")) == Qtrue)
 		extensions |= MKDEXT_FENCED_CODE;
 
+	if (rb_hash_lookup(hash, CSTR2SYM("disable_indented_code_blocks")) == Qtrue)
+		extensions |= MKDEXT_DISABLE_INDENTED_CODE;
+
 	if (rb_hash_lookup(hash, CSTR2SYM("autolink")) == Qtrue)
 		extensions |= MKDEXT_AUTOLINK;
 
 	if (rb_hash_lookup(hash, CSTR2SYM("strikethrough")) == Qtrue)
 		extensions |= MKDEXT_STRIKETHROUGH;
+
+	if (rb_hash_lookup(hash, CSTR2SYM("underline")) == Qtrue)
+		extensions |= MKDEXT_UNDERLINE;
+
+	if (rb_hash_lookup(hash, CSTR2SYM("highlight")) == Qtrue)
+		extensions |= MKDEXT_HIGHLIGHT;
+
+	if (rb_hash_lookup(hash, CSTR2SYM("quote")) == Qtrue)
+		extensions |= MKDEXT_QUOTE;
 
 	if (rb_hash_lookup(hash, CSTR2SYM("lax_spacing")) == Qtrue)
 		extensions |= MKDEXT_LAX_SPACING;
@@ -52,6 +64,9 @@ static void rb_redcarpet_md_flags(VALUE hash, unsigned int *enabled_extensions_p
 
 	if (rb_hash_lookup(hash, CSTR2SYM("superscript")) == Qtrue)
 		extensions |= MKDEXT_SUPERSCRIPT;
+
+	if (rb_hash_lookup(hash, CSTR2SYM("footnotes")) == Qtrue)
+		extensions |= MKDEXT_FOOTNOTES;
 
 	if (rb_hash_lookup(hash, CSTR2SYM("page_break")) == Qtrue)
 		extensions |= MKDEXT_PAGE_BREAK;
@@ -113,8 +128,8 @@ static VALUE rb_redcarpet_md_render(VALUE self, VALUE text)
 
 	if (rb_respond_to(rb_rndr, rb_intern("preprocess")))
 		text = rb_funcall(rb_rndr, rb_intern("preprocess"), 1, text);
-  if (NIL_P(text))
-    return Qnil;
+	if (NIL_P(text))
+		return Qnil;
 
 #ifdef HAVE_RUBY_ENCODING_H
 	{
@@ -130,12 +145,12 @@ static VALUE rb_redcarpet_md_render(VALUE self, VALUE text)
 	/* render the magic */
 	sd_markdown_render(
 		output_buf,
-		RSTRING_PTR(text),
+		(const uint8_t*)RSTRING_PTR(text),
 		RSTRING_LEN(text),
 		markdown);
 
 	/* build the Ruby string */
-	text = redcarpet_str_new(output_buf->data, output_buf->size, rb_enc_get(text));
+	text = rb_enc_str_new((const char*)output_buf->data, output_buf->size, rb_enc_get(text));
 
 	bufrelease(output_buf);
 
@@ -145,13 +160,14 @@ static VALUE rb_redcarpet_md_render(VALUE self, VALUE text)
 	return text;
 }
 
+__attribute__((visibility("default")))
 void Init_redcarpet()
 {
-    rb_mRedcarpet = rb_define_module("Redcarpet");
+	rb_mRedcarpet = rb_define_module("Redcarpet");
 
 	rb_cMarkdown = rb_define_class_under(rb_mRedcarpet, "Markdown", rb_cObject);
-    rb_define_singleton_method(rb_cMarkdown, "new", rb_redcarpet_md__new, -1);
-    rb_define_method(rb_cMarkdown, "render", rb_redcarpet_md_render, 1);
+	rb_define_singleton_method(rb_cMarkdown, "new", rb_redcarpet_md__new, -1);
+	rb_define_method(rb_cMarkdown, "render", rb_redcarpet_md_render, 1);
 
 	Init_redcarpet_rndr();
 }

@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef UPSKIRT_HTML_H
-#define UPSKIRT_HTML_H
+#ifndef HTML_H__
+#define HTML_H__
 
 #include "markdown.h"
 #include "buffer.h"
@@ -27,9 +27,9 @@ extern "C" {
 
 struct html_renderopt {
 	struct {
-		int header_count;
 		int current_level;
 		int level_offset;
+		int nesting_level;
 	} toc_data;
 
 	unsigned int flags;
@@ -65,7 +65,7 @@ extern void
 sdhtml_renderer(struct sd_callbacks *callbacks, struct html_renderopt *options_ptr, unsigned int render_flags);
 
 extern void
-sdhtml_toc_renderer(struct sd_callbacks *callbacks, struct html_renderopt *options_ptr);
+sdhtml_toc_renderer(struct sd_callbacks *callbacks, struct html_renderopt *options_ptr, int nesting_level);
 
 extern void
 sdhtml_smartypants(struct buf *ob, const uint8_t *text, size_t size);

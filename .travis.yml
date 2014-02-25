@@ -1,11 +1,16 @@
+before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get -qq install tidy
+
+install: travis_retry bundle install --without=benchmark
+
 rvm:
-  - 1.8.7 # (current default)
   - 1.9.2
   - 1.9.3
-  - rbx-18mode
-  - rbx-19mode
+  - 2.0.0
+  - 2.1.0
+  - rbx
   - ruby-head
-  - ree
 
 notifications:
   email: false

@@ -1,4 +1,7 @@
-/lib/redcarpet.bundle
+*.bundle
+*.o
+*.so
+*.swp
+/ext/redcarpet/Makefile
 /tmp
 Gemfile.lock
-/lib/redcarpet.so
